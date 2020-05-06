@@ -1,0 +1,508 @@
+---
+title: "ADA_Final project"
+author: "Meilun"
+date: "4/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Import 2018 NSDUH dataset
+```{r}
+NSDUH <- PUF2018_100819
+
+# IRWRKSTAT # employment status
+# wrkskipmo # skip work days
+# IRPNRNMREC #Pain reliever
+# IRTRQNMREC # TRANQUILIZER MISUSE
+# IRSTMNMREC # STIMULANT MISUSE
+# IRSEDNMREC # SEDATIVE MISUSE RECENCY
+# IRSEX # sex
+# NEWRACE2 # race/ethnicity
+# EDUHIGHCAT # education
+# INCOME # total family income
+
+# MEDICARE # MEDICARER COVER
+# CAIDCHIP # COVERED BY MEDICAID/CHIP
+# CHAMPUS # COVER Y TRICARE, CHAMPUS, CHAMPVA, VA, MILITARY
+# PRVHLTIN # Private insurance
+# GRPHLTIN # Private plan offered through employer or union
+
+# ADDPREV # eve felt sad, empty, depressed
+# ADDSCEV # ever felt discouraged 
+# ADLOSEV # ever lost interests in most things
+
+
+```
+
+Make a new subset of this dataset, only keeps the variables we are interested in
+```{r}
+library(tidyverse)
+library(Hmisc)
+# Creat the sub-dataset for project analysis
+ADA<-NSDUH%>%
+  dplyr::select(QUESTID2,irwrkstat,wrkskipmo,irpnrnmrec,irtrqnmrec,irstmnmrec,irsednmrec,irsex,NEWRACE2,eduhighcat,income,medicare,caidchip,champus,prvhltin,addprev,addscev,adlosev ) 
+
+##Look at the data 
+names(ADA)<-c("ID", "Employment", "Days_Notworking", "Pain_Reliever", "Tranquilizer", "Stimulant", "Sedative", "sex", "Race", "Education","Family_Income","Medicare","medicaid","VA","Private","Sad","Discouraged","Lost") 
+##Look at the variables will be used
+##taking a quick look 
+describe(ADA)
+```
+
+Recode each variable
+```{r results='hide'}
+# Recode employment status 1--full time 2-- part time
+ADA$Employment<-as.factor(ADA$Employment)
+ADA$Employment<- recode(ADA$Employment,
+          '3' = NA_character_,
+          '4' = NA_character_,
+          '99' = NA_character_) 
+table(ADA$Employment)
+
+# Recode days skipped work past 30 days 0-30;
+ADA<-ADA%>%
+  filter(Days_Notworking<=30&Days_Notworking>=0)
+
+
+# Recode Pain_Reliever;
+ADA$Pain_Reliever[ADA$Pain_Reliever==1|ADA$Pain_Reliever==2|ADA$Pain_Reliever==3]<-1
+ADA$Pain_Reliever[ADA$Pain_Reliever==9]<-0
+table(ADA$Pain_Reliever)
+
+# Recode Tranquilizer;
+ADA$Tranquilizer[ADA$Tranquilizer==1|ADA$Tranquilizer==2|ADA$Tranquilizer==3]<-1
+ADA$Tranquilizer[ADA$Tranquilizer==9]<-0
+table(ADA$Tranquilizer)
+
+# Recode Stimulant;
+ADA$Stimulant[ADA$Stimulant==1|ADA$Stimulant==2|ADA$Stimulant==3]<-1
+ADA$Stimulant[ADA$Stimulant==9]<-0
+table(ADA$Stimulant)
+
+# Recode Sedative;
+ADA$Sedative[ADA$Sedative==1|ADA$Sedative==2|ADA$Sedative==3]<-1
+ADA$Sedative[ADA$Sedative==9]<-0
+table(ADA$Sedative)
+
+# Create whether use drug or not 
+ADA$Drug[ADA$Pain_Reliever==1|ADA$Tranquilizer==1|ADA$Stimulant==1|ADA$Sedative==1]<-1
+ADA$Drug[ADA$Pain_Reliever==0&ADA$Tranquilizer==0&ADA$Stimulant==0&ADA$Sedative==0]<-0
+table(ADA$Drug)
+
+# Create drug_dose variable
+ADA$Drug_dose<-rowSums(ADA[,c(4:7)], na.rm=FALSE)
+ADA$Drug_dose<-as.factor(ADA$Drug_dose)
+table(ADA$Drug_dose)
+
+# Recode sex
+ADA$sex<-as.factor(ADA$sex)
+ADA$sex<- recode(ADA$sex,
+          '1' = 'Male',
+          '2' = 'Female') 
+table(ADA$sex)
+
+# Recode race
+ADA$Race[ADA$Race==3|ADA$Race==4|ADA$Race==5|ADA$Race==6]<-3
+ADA$Race[ADA$Race==7]<-4
+
+ADA$Race<-as.factor(ADA$Race)
+ADA$Race<- recode(ADA$Race,
+          '1' = 'Non-Hispanic White',
+          '2' = 'Non-Hispanic Black',
+          '3'='Non-Hispanic Others',
+          '4'='Hispanics')
+table(ADA$Race)
+
+# Recode educational level
+ADA$Education<-as.factor(ADA$Education)
+ADA$Education<- recode(ADA$Education,
+          '1' = 'Less high school',
+          '2' = 'High school',
+          '3'='Some college',
+          '4'='College graduate',
+          '5'=NA_character_)
+table(ADA$Education)
+
+# Recode Family Income
+ADA$Family_Income<-as.factor(ADA$Family_Income)
+ADA$Family_Income<- recode(ADA$Family_Income,
+          '1' = 'Less than 20,000',
+          '2' = '$20,000-$49,999',
+          '3'='$50,000-$74,999',
+          '4'='$75,000 or More')
+table(ADA$Family_Income)
+
+# Recode Medicare
+ADA$Medicare<-as.factor(ADA$Medicare)
+ADA$Medicare<-recode(ADA$Medicare,
+                      '1'='Yes',
+                      '2'='No',
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_)
+table(ADA$Medicare)
+
+# Recode Medicaid
+ADA$medicaid<-as.factor(ADA$medicaid)
+ADA$medicaid<-recode(ADA$medicaid,
+                      '1'='Yes',
+                      '2'='No',
+                      '85'=NA_character_,
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_)
+table(ADA$medicaid)
+
+# Recode VA 
+ADA$VA<-as.factor(ADA$VA)
+ADA$VA<-recode(ADA$VA,
+                      '1'='Yes',
+                      '2'='No',
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_)
+table(ADA$VA)
+
+# Recode private 
+ADA$Private<-as.factor(ADA$Private)
+ADA$Private<-recode(ADA$Private,
+                      '1'='Yes',
+                      '2'='No',
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_)
+table(ADA$Private)
+
+
+# Create whether have insurance 
+ADA$insurance[ADA$Medicare=="Yes"|ADA$medicaid=="Yes"|ADA$VA=="Yes"|ADA$Private=="Yes"]<-1
+ADA$insurance[ADA$Medicare=='No'&ADA$medicaid=='No'&ADA$VA=='No'&ADA$Private=='No']<-0
+ADA$insurance<-as.factor(ADA$insurance)
+table(ADA$insurance)
+
+
+# Recode Sad
+ADA$Sad<-as.factor(ADA$Sad)
+ADA$Sad<-recode(ADA$Sad,
+                      '1'='Yes',
+                      '2'='No',
+                      '85'=NA_character_,
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_,
+                      '99'=NA_character_)
+table(ADA$Sad)
+
+# Recode Discouraged
+ADA$Discouraged<-as.factor(ADA$Discouraged)
+ADA$Discouraged<-recode(ADA$Discouraged,
+                      '1'='Yes',
+                      '2'='No',
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_,
+                      '99'=NA_character_)
+table(ADA$Discouraged)
+
+# Recode Lost
+ADA$Lost<-as.factor(ADA$Lost)
+ADA$Lost<-recode(ADA$Lost,
+                      '1'='Yes',
+                      '2'='No',
+                      '94'=NA_character_,
+                      '97'=NA_character_,
+                      '98'=NA_character_,
+                      '99'=NA_character_)
+table(ADA$Lost)
+
+ADA$Depressed[ADA$Sad=="Yes"|ADA$Discouraged=="Yes"|ADA$Lost=="Yes"]<-1
+ADA$Depressed[ADA$Sad=='No'& ADA$Discouraged=='No'& ADA$Lost=='No']<-0
+ADA$Depressed<-as.factor(ADA$Depressed)
+table(ADA$Depressed)
+```
+
+Clean missing value and descriptive analysis
+```{r}
+ADA1<-na.omit(ADA)
+ADA1$Drug<-as.factor(ADA1$Drug)
+describe(ADA1)# 16,840 observations in total
+sd(ADA1$Days_Notworking)
+```
+
+# Check outcome ditribution
+
+```{r}
+View(ADA1)
+# Check shape of distribution
+d <- density(ADA1$Days_Notworking)
+plot(d, xlim=c(0,30))
+hist(ADA1$Days_Notworking)
+```
+
+**The plot indicated it roughly fits poisson regression** 
+
+### Create a function to calculate IRR  
+```{r, eval=FALSE}
+glm.RR <- function(GLM.RESULT, digits = 2) {
+
+    if (GLM.RESULT$family$family == "binomial") {
+        LABEL <- "OR"
+    } else if (GLM.RESULT$family$family == "poisson") {
+        LABEL <- "RR"
+    } else {
+        stop("Not logistic or Poisson model")
+    }
+
+    COEF      <- stats::coef(GLM.RESULT)
+    CONFINT   <- stats::confint(GLM.RESULT)
+    TABLE     <- cbind(coef=COEF, CONFINT)
+    TABLE.EXP <- round(exp(TABLE), digits)
+
+    colnames(TABLE.EXP)[1] <- LABEL
+
+    TABLE.EXP
+}
+```
+
+#Part I -- run analysis to determine if the number of skipped working days vaired by misuse of prescription drug (Yes/No)
+
+### run univariate poisson model to determine if the number of skipped working days vaired by misuse of prescription drug 
+
+```{r}
+mod.0 <- glm(Days_Notworking ~ Drug, family ="poisson", data = ADA1)
+summary(mod.0) 
+glm.RR(mod.0, 2)
+```
+
+### run multivarate poisson model to determine if the number of days skipped working days varied by misuse of prescription drug, adjusting for covariates (sex, race, education, family income, insurance, and dpressed)
+
+
+```{r}
+mod.1 <- glm(Days_Notworking ~ Drug+sex+Race+Education+Family_Income+insurance+Depressed, family ="poisson", data = ADA1)
+summary(mod.1) 
+glm.RR(mod.1, 2)
+```
+
+
+### To check for overdispersion, we can run a negative binomial model and then use the LR test to see if adding an overdispersion paremeter improves the model fit. 
+
+#### a. Run two negative binomial models, one for univariate, one for multivariate
+
+```{r}
+# Negative binomial regression
+#install.packages("MASS")
+library(MASS)
+mod.0nb <- glm.nb(Days_Notworking ~ Drug, data = ADA1)
+mod.1nb <- glm.nb(Days_Notworking ~ Drug+sex+Race+Education+Family_Income+insurance+Depressed, data = ADA1)
+summary(mod.0nb)
+summary(mod.1nb)
+```
+
+
+#### b. Check for overdispersion using the lrtest function to compare the Poisson and negative binomial models for both models if running a negbin model improves fit. Interpret the output.
+
+```{r}
+#model comparison
+#install.packages("lmtest")
+library(lmtest)
+
+lrtest(mod.0, mod.0nb)
+#model comparison
+lrtest(mod.1, mod.1nb)
+
+AIC(mod.0, mod.0nb)
+#model comparison
+AIC(mod.1, mod.1nb)
+```
+
+**Answer: The chi-sq test of the Loglikelihood ratio test for the mod0 and mod0.nb was significant (p<0.001), whcih indecaited the negbin model improves the model fit than the poisson regession. Same as the chi-sq of the LLR test for the mod1 and mod1.nb. The AIC showed the same conclusions.** 
+
+### Use the stargazer function to compare SEs from the Poisson and negative binomial models. 
+
+```{r}
+# model0 and model0.nb
+#install.packages("stargazer")
+library(stargazer)
+stargazer(mod.0, mod.0nb, title="Model Comparison",
+          type="text",align=TRUE,single.row=TRUE, digits=6)
+
+# model1 and model1.nb
+stargazer(mod.1, mod.1nb, title="Model Comparison",
+          type="text",align=TRUE,single.row=TRUE, digits=6)
+```
+
+***The Poisson models have smaller SEs than negative binomial models, which tends to have a significant results***
+
+```{r}
+# Second method doing comparisions and have the IRR
+#install.packages("sjPlot")
+library(sjPlot)
+tab_model(mod.0, mod.0nb, 
+          title="Model Comparison",
+          dv.labels=c("Poisson","negative binomial"),
+          show.aic=T)
+
+tab_model(mod.1, mod.1nb, 
+          title="Model Comparison",
+          dv.labels=c("Poisson","negative binomial"),
+          show.aic=T)
+```
+
+
+```{r}
+# Check whether multivariate model has a better fit
+
+lrtest(mod.0nb, mod.1nb)
+AIC(mod.0nb, mod.1nb)
+```
+
+***The chi-sq test of the Loglikelihood ratio test for the mod.0nb and mod.1nb was significant (p<0.001), whcih indecaited the model with multivariates improves the model fit than univariate model. The AIC results showed the same conclusions.***
+
+
+###  Calculate the IRR for the effect of drug us (Yes/No) on the rate of absent from work from the negative binomial model that includes SEX, AGE, race, family income, insurance, and depressed as covariates.
+
+```{r}
+#install.packages("sandwich")
+library(sandwich)
+# Negbin model with SE estimated via robust variance estimator
+robust<-coeftest(mod.1nb, vcov = sandwich)
+
+est <- cbind(IRR = coef(mod.1nb), "2.5%"=robust[,1]-1.96*robust[,2], 
+             "97.5%"=robust[,1]+1.96*robust[,2])
+exp(est)
+
+```
+
+## Check whether adding a interaction term is would increase model fit, and whehter the interaction term is significant.
+
+```{r}
+mod.2nb <- glm.nb(Days_Notworking ~ Drug*Race+sex+Education+Family_Income+insurance+Depressed, data = ADA1)
+summary(mod.2nb)
+lrtest(mod.1nb,mod.2nb)
+AIC(mod.1nb,mod.2nb)
+```
+
+**The model summary indicated the interaction term of race and drug use was not significant on the 0.05 level, which indicated the effect of drug use on the counts of days absent form work in the past 30 days did not vary by the race. Also, the LLR test and AIC result indicated the model with interaction term does not have a better model fit. ***
+
+
+# Part II--- check the drug dose
+
+### run univariate poisson model to determine if the number of skipped working days vaired by misuse of prescription drug 
+
+```{r}
+mod.3 <- glm(Days_Notworking ~ Drug_dose, family ="poisson", data = ADA1)
+summary(mod.3) 
+glm.RR(mod.3, 2)
+```
+
+### run multivarate poisson model to determine if the number of days skipped working days varied by misuse of prescription drug, adjusting for covariates (sex, race, education, family income,insurance, and depressed)
+
+
+```{r}
+mod.4 <- glm(Days_Notworking ~ Drug_dose+sex+Race+Education+Family_Income+insurance+Depressed, family ="poisson", data = ADA1)
+summary(mod.4) 
+glm.RR(mod.4, 2)
+```
+
+
+### To check for overdispersion, we can run a negative binomial model and then use the LR test to see if adding an overdispersion paremeter improves the model fit. 
+
+#### a. Run two negative binomial models, one for univariate, one for multivariate
+
+```{r}
+# Negative binomial regression
+#install.packages("MASS")
+library(MASS)
+mod.3nb <- glm.nb(Days_Notworking ~ Drug_dose, data = ADA1)
+mod.4nb <- glm.nb(Days_Notworking ~ Drug_dose+sex+Race+Education+Family_Income+insurance+Depressed, data = ADA1)
+summary(mod.3nb)
+summary(mod.4nb)
+```
+
+
+#### b. Check for overdispersion using the lrtest function to compare the Poisson and negative binomial models for both models if running a negbin model improves fit.
+
+```{r}
+#model comparison
+#install.packages("lmtest")
+library(lmtest)
+
+lrtest(mod.3, mod.3nb)
+#model comparison
+lrtest(mod.4, mod.4nb)
+
+AIC(mod.3, mod.3nb)
+#model comparison
+AIC(mod.4, mod.4nb)
+```
+
+**Answer: The chi-sq of the Loglikelihood ratio test for the mod3 and mod3.nb was significant (p<0.001), whcih indecaited the negbin model improves the model fit than the poisson regession. Same as the chi-sq of the LLR test for the mod4 and mod4.nb.**
+
+## Use the stargazer function to compare SEs from the Poisson and negative binomial models. 
+
+```{r}
+# model3 and model3.nb
+#install.packages("stargazer")
+library(stargazer)
+stargazer(mod.3, mod.3nb, title="Model Comparison",
+          type="text",align=TRUE,single.row=TRUE, digits=6)
+
+# model4 and model4.nb
+stargazer(mod.4, mod.4nb, title="Model Comparison",
+          type="text",align=TRUE,single.row=TRUE, digits=6)
+```
+
+```{r}
+# Second method doing comparisions and have the IRR
+#install.packages("sjPlot")
+library(sjPlot)
+tab_model(mod.3, mod.3nb, 
+          title="Model Comparison",
+          dv.labels=c("Poisson","negative binomial"),
+          show.aic=T)
+
+tab_model(mod.4, mod.4nb, 
+          title="Model Comparison",
+          dv.labels=c("Poisson","negative binomial"),
+          show.aic=T)
+```
+
+
+```{r}
+# Check whether multivariate model has a better fit
+
+lrtest(mod.3nb, mod.4nb)
+AIC(mod.3nb, mod.4nb)
+```
+
+***The chi-sq test of the Loglikelihood ratio test for the mod.3nb and mod.4nb was significant (p<0.001), whcih indecaited the model with multivariates improves the model fit than univariate model. The AIC results showed the same conclusions.***
+
+
+###  Calculate the IRR for the effect of drug_dose using on the rate of absent from work from the negative binomial model that includes SEX, AGE, race, and family income, insurance status, depressed as covariates.
+
+
+```{r}
+#install.packages("sandwich")
+library(sandwich)
+# Negbin model with SE estimated via robust variance estimator
+robust1<-coeftest(mod.4nb, vcov = sandwich)
+est1 <- cbind(IRR = coef(mod.4nb), "2.5%"=robust1[,1]-1.96*robust1[,2], 
+             "97.5%"=robust1[,1]+1.96*robust1[,2])
+exp(est1)
+
+```
+
+## Check whether adding a interaction term is would be different
+
+```{r}
+mod.5nb <- glm.nb(Days_Notworking ~ Drug_dose*Race+sex+Education+Family_Income+insurance+Depressed, data = ADA1)
+summary(mod.5nb)
+lrtest(mod.4nb,mod.5nb)
+```
+
+**The model summary indicated the interaction term of race and drug_dose was not significant on the 0.05 level, which indicated the effect of drug use on different levels on the counts of days absent form work in the past 30 days did not vary by the race. Also, the LLR test and AIC result indicated the model with interaction term does not have a better model fit. ***
+
+
